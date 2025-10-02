@@ -1,0 +1,8 @@
+watermark:
+  positions:
+    - [35, 585, 176, 638]
+    - [100, 100, 200, 150]
+    - 
+  ckpt_p: "./weights/sttn.pth"
+  mask_expand: 30
+  neighbor_stride: 10

@@ -1,0 +1,10 @@
+[project]
+name = "kling-video-watermarkremover-enhancer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "basicsr>=1.4.2",
+    "matplotlib>=3.10.6",
+]
