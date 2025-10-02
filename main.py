@@ -29,7 +29,7 @@ def process_video(
 
     if remove_watermark_flag:
         update_status("Erase: removing watermark...")
-        remove_watermark(frame_paths)
+        remove_watermark(frame_paths, input_path)
 
     update_status("Create video")
     create_video(input_path, output_path, fps)
@@ -72,7 +72,7 @@ def main():
         "--input", type=str, required=True, help="Input video file or directory"
     )
     parser.add_argument(
-        "--remove-watermark", action="store_true", help="Enable watermark removal"
+        "--remove-watermark", default=True, help="Enable watermark removal"
     )
 
     args = parser.parse_args()

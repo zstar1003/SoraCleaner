@@ -41,6 +41,37 @@ def detect_fps(target_path: str) -> float:
     return 30
 
 
+def detect_video_orientation(target_path: str) -> str:
+    """
+    Detect if video is landscape or portrait.
+
+    Parameters:
+    - target_path: Path to the video file.
+
+    Returns:
+    - "landscape" if width >= height, "portrait" otherwise.
+    """
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0",
+        target_path,
+    ]
+    try:
+        output = subprocess.check_output(command).decode().strip()
+        width, height = map(int, output.split(","))
+        return "landscape" if width >= height else "portrait"
+    except Exception:
+        # Default to landscape if detection fails
+        return "landscape"
+
+
 def extract_frames(
     target_path: str, fps: float = 30, temp_frame_quality: int = 1
 ) -> bool:
@@ -73,9 +104,14 @@ def create_video(
         "-hwaccel", "auto",
         "-r", str(fps),
         "-i", os.path.join(temp_directory_path, "%04d." + TEMP_FRAME_FORMAT),
+        "-i", target_path,  # Add original video as second input for audio
+        "-map", "0:v:0",  # Map video from first input (frames)
+        "-map", "1:a?",  # Map audio from second input (original video), if exists
         "-c:v", output_video_encoder,
+        "-c:a", "copy",  # Copy audio codec without re-encoding
         "-pix_fmt", "yuv420p",
         "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-shortest",  # End encoding when shortest stream ends
         "-y", output_path
     ]
 

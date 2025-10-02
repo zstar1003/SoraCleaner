@@ -1,8 +1,12 @@
 watermark:
-  positions:
+  positions_landscape:
     - [35, 585, 176, 638]
-    - [100, 100, 200, 150]
-    - 
+    - [30, 68, 179, 118]
+    - [1112, 321, 1266, 367]
+  positions_portrait:
+    - [28, 1029, 175, 1091]
+    - [538, 604, 685, 657]
+    - [25, 79, 173, 136]
   ckpt_p: "./weights/sttn.pth"
   mask_expand: 30
   neighbor_stride: 10

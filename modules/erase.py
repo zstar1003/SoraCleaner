@@ -131,21 +131,35 @@ def extract_mask(
     return frames_list, masks_list
 
 
-def remove_watermark(frame_paths: List[str]):
+def remove_watermark(frame_paths: List[str], video_path: str):
     """
     Remove watermark from video frames.
 
     This function removes watermarks by extracting masks and inpainting the affected areas using surrounding pixels.
+    It automatically detects video orientation and uses appropriate watermark positions.
 
     Parameters:
     - frame_paths: A list of file paths to the video frames.
-    - config: A dictionary containing watermark positions, mask expansion, neighbor stride, and checkpoint path.
+    - video_path: Path to the original video file for orientation detection.
 
     Returns:
     None. The function modifies the video frames in place.
     """
+    from utils.video_utils import detect_video_orientation
+
+    # Detect video orientation
+    orientation = detect_video_orientation(video_path)
+
+    # Select positions based on orientation
+    if orientation == "portrait":
+        positions_key = "positions_portrait"
+    else:
+        positions_key = "positions_landscape"
+
+    positions = CONFIG["watermark"].get(positions_key, CONFIG["watermark"].get("positions_landscape", []))
+
     frames_list, masks_list = extract_mask(
-        frame_paths, CONFIG["watermark"]["positions"], CONFIG["watermark"]["mask_expand"]
+        frame_paths, positions, CONFIG["watermark"]["mask_expand"]
     )
     results = inpaint_video(
         frame_paths,
