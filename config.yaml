@@ -8,5 +8,5 @@ watermark:
     - [538, 604, 685, 657]
     - [25, 79, 173, 136]
   ckpt_p: "./weights/sttn.pth"
-  mask_expand: 30
+  mask_expand: 10
   neighbor_stride: 10

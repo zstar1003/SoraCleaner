@@ -1,7 +1,7 @@
 [project]
-name = "kling-video-watermarkremover-enhancer"
+name = "SoraCleaner"
 version = "0.1.0"
-description = "Add your description here"
+description = "A watermark removal tool specifically designed for Sora2. "
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
