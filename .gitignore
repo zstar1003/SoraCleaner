@@ -139,3 +139,5 @@ dmypy.json
 nohup.out
 videos/
 gfpgan/
+
+*.mp4

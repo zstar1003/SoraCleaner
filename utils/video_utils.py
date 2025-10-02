@@ -108,9 +108,11 @@ def create_video(
         "-map", "0:v:0",  # Map video from first input (frames)
         "-map", "1:a?",  # Map audio from second input (original video), if exists
         "-c:v", output_video_encoder,
-        "-c:a", "copy",  # Copy audio codec without re-encoding
+        "-c:a", "aac",  # Re-encode audio to match video duration
+        "-b:a", "192k",  # Audio bitrate
         "-pix_fmt", "yuv420p",
         "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-af", "apad",  # Pad audio with silence if needed
         "-shortest",  # End encoding when shortest stream ends
         "-y", output_path
     ]
