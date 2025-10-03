@@ -59,25 +59,23 @@ def build_sttn_model(ckpt_p: str, device="cuda"):
 @torch.no_grad()
 def inpaint_video_with_builded_sttn(
     model,
-    paths: List[str],
     frames: List[Image.Image],
     masks: List[Image.Image],
     neighbor_stride: int = 10,
     device="cuda",
-) -> List[Image.Image]:
+) -> List[np.ndarray]:
     """
     Inpaints missing parts of video frames using a pre-trained STTN model.
 
     Parameters:
     - model: Pre-trained STTN model for frame inpainting.
-    - paths: List of file paths corresponding to each frame.
     - frames: List of original video frames as PIL images.
     - masks: List of masks indicating the regions to be inpainted.
     - neighbor_stride: Stride for selecting neighboring frames.
     - device: Device for computation (e.g., 'cuda', 'cpu').
 
     Returns:
-    - List of tuples containing the path and the inpainted frame as a numpy array.
+    - A list of inpainted frames as numpy arrays.
     """
     w, h = 432, 240
     video_length = len(frames)
@@ -136,5 +134,5 @@ def inpaint_video_with_builded_sttn(
         comp_frame = Image.fromarray(comp_frame).resize((ori_w, ori_h))
         comp_frame = np.array(comp_frame)
         comp_frame = comp_frame * b_mask + frame * (1 - b_mask)
-        result.append([paths[idx], comp_frame])
+        result.append(comp_frame)
     return result

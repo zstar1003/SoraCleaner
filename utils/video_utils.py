@@ -1,138 +1,85 @@
-import glob
-import os
-import subprocess
+import av
+from PIL import Image
+import numpy as np
 from typing import List
 
-TEMP_VIDEO_FILE = "tmp.mp4"
-TEMP_FRAME_FORMAT = "png"
-
-
-def run_ffmpeg(args: List[str]) -> bool:
-    commands = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
-    commands.extend(args)
-    try:
-        subprocess.check_output(commands, stderr=subprocess.STDOUT)
-        return True
-    except Exception as e:
-        print(str(e))
-        pass
-    return False
-
-
-def detect_fps(target_path: str) -> float:
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=r_frame_rate",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        target_path,
-    ]
-    output = subprocess.check_output(command).decode().strip().split("/")
-    try:
-        numerator, denominator = map(int, output)
-        return numerator / denominator
-    except Exception:
-        pass
-    return 30
-
-
-def detect_video_orientation(target_path: str) -> str:
+def read_video_to_pil_images(video_path: str) -> (List[Image.Image], float):
     """
-    Detect if video is landscape or portrait.
-
-    Parameters:
-    - target_path: Path to the video file.
-
-    Returns:
-    - "landscape" if width >= height, "portrait" otherwise.
+    Reads a video file and returns a list of PIL Images and the FPS.
     """
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height",
-        "-of",
-        "csv=p=0",
-        target_path,
-    ]
+    frames = []
+    fps = 30  # Default FPS
     try:
-        output = subprocess.check_output(command).decode().strip()
-        width, height = map(int, output.split(","))
-        return "landscape" if width >= height else "portrait"
-    except Exception:
-        # Default to landscape if detection fails
-        return "landscape"
+        with av.open(video_path) as container:
+            stream = container.streams.video[0]
+            fps = stream.average_rate
+            for frame in container.decode(video=0):
+                frames.append(frame.to_image())
+    except av.AVError as e:
+        print(f"Error decoding video: {e}")
+        return [], 0
+    return frames, float(fps)
 
-
-def extract_frames(
-    target_path: str, fps: float = 30, temp_frame_quality: int = 1
-) -> bool:
-    temp_directory_path = get_temp_directory_path(target_path)
-    commands = [
-        "-hwaccel",
-        "auto",
-        "-i",
-        target_path,
-        "-q:v",
-        str(temp_frame_quality),
-        "-pix_fmt",
-        "rgb24",
-        "-vf",
-        "fps=" + str(fps),
-        os.path.join(temp_directory_path, "%04d." + TEMP_FRAME_FORMAT),
-    ]
-    return run_ffmpeg(commands)
-
-
-def create_video(
-    target_path: str,
+def write_pil_images_to_video(
     output_path: str,
-    fps: float = 30,
-    output_video_encoder: str = "libx264",
-) -> bool:
-    temp_directory_path = get_temp_directory_path(target_path)
+    frames: List[Image.Image],
+    fps: float,
+    input_path: str,
+):
+    """
+    Writes a list of PIL Images to a video file, preserving audio from the original.
+    """
+    if not frames:
+        print("No frames to write.")
+        return
 
-    commands = [
-        "-hwaccel", "auto",
-        "-r", str(fps),
-        "-i", os.path.join(temp_directory_path, "%04d." + TEMP_FRAME_FORMAT),
-        "-i", target_path,  # Add original video as second input for audio
-        "-map", "0:v:0",  # Map video from first input (frames)
-        "-map", "1:a?",  # Map audio from second input (original video), if exists
-        "-c:v", output_video_encoder,
-        "-c:a", "aac",  # Re-encode audio to match video duration
-        "-b:a", "192k",  # Audio bitrate
-        "-pix_fmt", "yuv420p",
-        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-        "-af", "apad",  # Pad audio with silence if needed
-        "-shortest",  # End encoding when shortest stream ends
-        "-y", output_path
-    ]
+    first_frame_np = np.array(frames[0])
+    height, width, _ = first_frame_np.shape
 
-    return run_ffmpeg(commands)
+    with av.open(output_path, mode="w") as out_container:
+        out_stream = out_container.add_stream("libx264", rate=fps)
+        out_stream.width = width
+        out_stream.height = height
+        out_stream.pix_fmt = "yuv420p"
 
-
-def get_temp_frame_paths(
-    temp_directory_path: str, temp_frame_format: str = TEMP_FRAME_FORMAT
-) -> List[str]:
-    temp_frame_paths = glob.glob(
-        (os.path.join(glob.escape(temp_directory_path), "*." + temp_frame_format))
-    )
-    temp_frame_paths.sort()
-    return temp_frame_paths
+        # Add audio stream from original video if it exists
+        try:
+            with av.open(input_path) as in_container:
+                if in_container.streams.audio:
+                    in_audio_stream = in_container.streams.audio[0]
+                    out_audio_stream = out_container.add_stream(
+                        template=in_audio_stream
+                    )
+                    # Copy audio packets
+                    for packet in in_container.demux(in_audio_stream):
+                        if packet.dts is None:
+                            continue
+                        packet.stream = out_audio_stream
+                        out_container.mux(packet)
+        except av.AVError as e:
+            print(f"Could not read audio stream: {e}")
 
 
-def get_temp_directory_path(target_path: str) -> str:
-    target_name, _ = os.path.splitext(os.path.basename(target_path))
-    target_directory_path = os.path.dirname(target_path)
-    temp_directory_path = os.path.join(target_directory_path, target_name)
-    os.makedirs(temp_directory_path, exist_ok=True)
-    return temp_directory_path
+        for img in frames:
+            frame_np = np.array(img)
+            frame = av.VideoFrame.from_ndarray(frame_np, format="rgb24")
+            for packet in out_stream.encode(frame):
+                out_container.mux(packet)
+
+        # Flush the stream
+        for packet in out_stream.encode():
+            out_container.mux(packet)
+
+def detect_video_orientation(video_path: str) -> str:
+    """
+    Detects if a video is landscape or portrait using PyAV.
+    """
+    try:
+        with av.open(video_path) as container:
+            stream = container.streams.video[0]
+            width = stream.width
+            height = stream.height
+            return "landscape" if width >= height else "portrait"
+    except (av.AVError, IndexError) as e:
+        print(f"Error detecting orientation: {e}. Defaulting to landscape.")
+        return "landscape"
